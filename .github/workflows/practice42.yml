@@ -1,0 +1,120 @@
+name: PartsUnlimited CI-CD practice 4.2
+
+on:
+  workflow_dispatch:
+    inputs:
+      install_ssms:
+        description: Install SSMS on the temporary Windows deployment machine
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: windows-2022
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: PartsUnlimited-aspnet45
+    steps:
+      - name: Get source code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up NuGet
+        uses: NuGet/setup-nuget@fd55a6f3b34392fa83fde1454582407d8c714123 # v4.0
+        with:
+          nuget-version: '6.11.1'
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57 # v3
+
+      - name: Restore original NuGet packages
+        run: |
+          foreach ($config in @(
+            'src\PartsUnlimitedWebsite\packages.config',
+            'test\PartsUnlimited.UnitTests\packages.config'
+          )) {
+            nuget restore $config -PackagesDirectory packages `
+              -Source https://api.nuget.org/v3/index.json -NonInteractive
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      - name: Install legacy framework reference assemblies
+        run: |
+          $tools = "$env:RUNNER_TEMP\legacy-tools"
+          $root = "$env:RUNNER_TEMP\legacy-reference-assemblies"
+          New-Item -ItemType Directory -Force "$root\.NETFramework" | Out-Null
+          foreach ($framework in @('net451', 'net452')) {
+            nuget install "Microsoft.NETFramework.ReferenceAssemblies.$framework" `
+              -Version 1.0.3 -OutputDirectory $tools `
+              -Source https://api.nuget.org/v3/index.json -NonInteractive
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            Copy-Item "$tools\Microsoft.NETFramework.ReferenceAssemblies.$framework.1.0.3\build\.NETFramework\*" `
+              "$root\.NETFramework" -Recurse -Force
+          }
+          "TargetFrameworkRootPath=$root\" >> $env:GITHUB_ENV
+
+      - name: Build and publish website
+        run: |
+          msbuild src\PartsUnlimitedWebsite\PartsUnlimitedWebsite.csproj `
+            /m /p:Configuration=Release /p:Platform=AnyCPU `
+            /p:VisualStudioVersion=17.0 `
+            "/p:TargetFrameworkRootPath=$env:TargetFrameworkRootPath" `
+            /p:DeployOnBuild=true /p:WebPublishMethod=FileSystem `
+            /p:DeployDefaultTarget=WebPublish /p:DeleteExistingFiles=true `
+            "/p:PublishUrl=$env:GITHUB_WORKSPACE\artifacts\site"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (!(Test-Path "$env:GITHUB_WORKSPACE\artifacts\site\bin\PartsUnlimited.dll")) {
+            throw 'Published website assembly was not produced'
+          }
+
+      - name: Build unit tests
+        run: |
+          msbuild test\PartsUnlimited.UnitTests\PartsUnlimited.UnitTests.csproj `
+            /m /p:Configuration=Release /p:Platform=AnyCPU `
+            /p:VisualStudioVersion=17.0 `
+            "/p:TargetFrameworkRootPath=$env:TargetFrameworkRootPath"
+          exit $LASTEXITCODE
+
+      - name: Run unit tests
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $visualStudio = & $vswhere -latest -products * `
+            -requires Microsoft.Component.MSBuild -property installationPath
+          $vstest = "$visualStudio\Common7\IDE\CommonExtensions\Microsoft\TestWindow\vstest.console.exe"
+          $testBin = Join-Path $PWD 'test\PartsUnlimited.UnitTests\bin\Release'
+          $results = "$env:GITHUB_WORKSPACE\artifacts\test-results"
+          & $vstest "$testBin\PartsUnlimited.UnitTests.dll" `
+            "/TestAdapterPath:$testBin" /Platform:x86 `
+            "/ResultsDirectory:$results" '/Logger:trx;LogFileName=unit-tests.trx'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          [xml]$report = Get-Content "$results\unit-tests.trx"
+          $counts = $report.TestRun.ResultSummary.Counters
+          if ([int]$counts.executed -lt 1 -or [int]$counts.passed -ne [int]$counts.executed) {
+            throw 'Unit tests did not execute or did not all pass'
+          }
+          "## Unit tests`nPassed: $($counts.passed); executed: $($counts.executed)." >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Publish website artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: drop
+          path: artifacts/site/
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Publish test results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: unit-test-results
+          path: artifacts/test-results/
+          if-no-files-found: warn
+          retention-days: 3
