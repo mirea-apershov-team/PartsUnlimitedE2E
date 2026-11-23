@@ -64,6 +64,7 @@ jobs:
             /p:VisualStudioVersion=17.0 `
             "/p:TargetFrameworkRootPath=$env:TargetFrameworkRootPath" `
             /p:DeployOnBuild=true /p:WebPublishMethod=FileSystem `
+            /p:DeployDefaultTarget=WebPublish `
             /p:DeleteExistingFiles=true `
             "/p:PublishUrl=$env:GITHUB_WORKSPACE\artifacts\site"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
