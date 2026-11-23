@@ -20,3 +20,16 @@ The `PartsUnlimited CI` workflow runs automatically on pushes to `master` or
 The separate Selenium project needs an external browser and deployed website;
 it is not part of this unit-test build. The inherited dependencies are obsolete
 and this coursework configuration is not a production deployment template.
+
+## Temporary IIS delivery lab
+
+Practice 4.2 uses a temporary GitHub-hosted Windows machine. IIS binds only to
+`127.0.0.1:8080`; SQL Server Express uses local Windows authentication with its
+network protocols disabled. The original Entity Framework initializer creates
+and seeds the database before the IIS application pool receives database access.
+The setup scripts are under `tools/lab`.
+
+The website, database, and optional SSMS installation are removed when the job
+ends. Browser screenshots and non-sensitive JSON evidence are retained as CI
+artifacts; there is no permanent public website. Runtime administrator passwords
+are randomly generated and masked, and the deployed configuration is not uploaded.
