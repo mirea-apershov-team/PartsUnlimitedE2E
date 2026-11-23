@@ -45,7 +45,7 @@ IF DATABASE_PRINCIPAL_ID(N'IIS APPPOOL\PartsUnlimitedPool') IS NULL
 ALTER ROLE [db_owner] ADD MEMBER [IIS APPPOOL\PartsUnlimitedPool];
 "@
 if ((Get-WebAppPoolState 'PartsUnlimitedPool').Value -ne 'Started') { Start-WebAppPool 'PartsUnlimitedPool' }
-if ((Get-WebsiteState 'PartsUnlimitedLab').Value -ne 'Started') { Start-Website 'PartsUnlimitedLab' }
+if ((Get-Website -Name 'PartsUnlimitedLab').State -ne 'Started') { Start-Website 'PartsUnlimitedLab' }
 $url = 'http://localhost:8080/'
 $deadline = (Get-Date).AddMinutes(3)
 do {

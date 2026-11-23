@@ -118,3 +118,63 @@ jobs:
           path: artifacts/test-results/
           if-no-files-found: warn
           retention-days: 3
+
+  deploy:
+    name: Deploy to temporary Windows IIS
+    needs: build
+    runs-on: windows-2022
+    timeout-minutes: 50
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Get deployment scripts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install IIS and prepare website
+        shell: powershell
+        run: .\tools\lab\Setup-IIS.ps1
+
+      - name: Install real SQL Server Express
+        shell: powershell
+        run: .\tools\lab\Install-SqlExpress.ps1
+
+      - name: Install SQL management tools
+        shell: powershell
+        env:
+          INSTALL_SSMS: ${{ inputs.install_ssms }}
+        run: |
+          if ($env:INSTALL_SSMS -eq 'true') {
+            .\tools\lab\Install-ManagementTools.ps1 -InstallSsms
+          } else {
+            .\tools\lab\Install-ManagementTools.ps1
+          }
+
+      - name: Download compiled website
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: drop
+          path: ${{ runner.temp }}/partsunlimited-publish
+
+      - name: Deploy website and initialize original database
+        shell: powershell
+        run: .\tools\lab\Deploy-IIS.ps1 -PublishDirectory "$env:RUNNER_TEMP\partsunlimited-publish"
+
+      - name: Verify live IIS website in a real browser
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check playwright==1.65.2
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tools/lab/capture_site.py
+          exit $LASTEXITCODE
+
+      - name: Publish deployment evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: deployment-evidence
+          path: artifacts/deployment-evidence/
+          if-no-files-found: warn
+          retention-days: 3
