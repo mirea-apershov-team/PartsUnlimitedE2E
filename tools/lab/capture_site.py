@@ -17,7 +17,7 @@ with sync_playwright() as p:
     if browser is None:
         raise RuntimeError('No installed Windows browser was available')
     page=browser.new_page(viewport={'width':1600,'height':1100})
-    response=page.goto('http://localhost:8080/',wait_until='domcontentloaded',timeout=120000)
+    response=page.goto('http://127.0.0.1:8080/',wait_until='domcontentloaded',timeout=120000)
     assert response and response.status==200
     page.wait_for_timeout(1800)
     page.locator('#jumbotron-carousel [data-slide-to="1"]').click()

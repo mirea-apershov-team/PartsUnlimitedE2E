@@ -46,13 +46,23 @@ ALTER ROLE [db_owner] ADD MEMBER [IIS APPPOOL\PartsUnlimitedPool];
 "@
 if ((Get-WebAppPoolState 'PartsUnlimitedPool').Value -ne 'Started') { Start-WebAppPool 'PartsUnlimitedPool' }
 if ((Get-Website -Name 'PartsUnlimitedLab').State -ne 'Started') { Start-Website 'PartsUnlimitedLab' }
-$url = 'http://localhost:8080/'
+$url = 'http://127.0.0.1:8080/'
 $deadline = (Get-Date).AddMinutes(3)
+$diagnosticWritten = $false
 do {
     try {
         $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 90
         if ($response.StatusCode -eq 200) { break }
     } catch {
+        if (-not $diagnosticWritten) {
+            $diagnosticWritten = $true
+            $message = [string]$_.ErrorDetails.Message
+            if (-not $message) { $message = $_.Exception.Message }
+            $message = $message.Replace($adminPassword,'[redacted]')
+            $message | Set-Content "$env:GITHUB_WORKSPACE\artifacts\deployment-evidence\http-startup-error.txt"
+            Write-Host $message
+            Get-WebBinding -Name 'PartsUnlimitedLab' | Format-List protocol,bindingInformation
+        }
         if ((Get-Date) -gt $deadline) { throw }
         Write-Host 'Waiting for ASP.NET application startup'
         Start-Sleep 5

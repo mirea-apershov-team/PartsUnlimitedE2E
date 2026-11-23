@@ -23,3 +23,6 @@ if ($InstallSsms) {
 Invoke-Sqlcmd -ServerInstance 'lpc:.\SQLEXPRESS' -Database master -TrustServerCertificate `
     -Query "SELECT @@SERVERNAME AS ServerName, SERVERPROPERTY('Edition') AS Edition, name, state_desc FROM sys.databases;" `
     -AbortOnError | Format-Table
+$response = Invoke-WebRequest 'http://127.0.0.1:8080/' -UseBasicParsing -TimeoutSec 90
+if ($response.StatusCode -ne 200) { throw 'IIS website unavailable after management-tool setup' }
+Write-Host "SQL management ready; IIS website still responds with HTTP $($response.StatusCode)"
