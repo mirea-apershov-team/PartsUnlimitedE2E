@@ -56,9 +56,7 @@ do {
     } catch {
         if (-not $diagnosticWritten) {
             $diagnosticWritten = $true
-            $message = [string]$_.ErrorDetails.Message
-            if (-not $message) { $message = $_.Exception.Message }
-            $message = $message.Replace($adminPassword,'[redacted]')
+            $message = $_.Exception.Message.Replace($adminPassword,'[redacted]')
             $message | Set-Content "$env:GITHUB_WORKSPACE\artifacts\deployment-evidence\http-startup-error.txt"
             Write-Host $message
             Get-WebBinding -Name 'PartsUnlimitedLab' | Format-List protocol,bindingInformation

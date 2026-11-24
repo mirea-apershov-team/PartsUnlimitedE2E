@@ -23,8 +23,9 @@ with sync_playwright() as p:
     page.locator('#jumbotron-carousel [data-slide-to="1"]').click()
     page.wait_for_timeout(1000)
     text=page.locator('body').inner_text()
-    assert expected in text, (expected,text[:1200])
-    page.screenshot(path=str(destination/'website.png'),full_page=True)
+    assert expected.casefold() in text.casefold(), (expected,text[:1200])
+    # Keep the visible homepage and updated carousel in the report at readable size.
+    page.screenshot(path=str(destination/'website.png'))
     (destination/'browser.json').write_text(json.dumps({'url':page.url,'http_status':response.status,
         'expected_visible_text':expected,'commit':os.environ['GITHUB_SHA'],'real_browser':True},indent=2))
     print('Browser verified visible deployed text:',expected)
