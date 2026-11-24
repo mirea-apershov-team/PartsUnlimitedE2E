@@ -1,6 +1,10 @@
 name: PartsUnlimited CI-CD practice 4.2
 
 on:
+  push:
+    branches: [master]
+    paths:
+      - 'PartsUnlimited-aspnet45/**'
   workflow_dispatch:
     inputs:
       install_ssms:
